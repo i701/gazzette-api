@@ -1,15 +1,19 @@
 """Main module for the Gazette API, providing job and tender search functionality."""
 
 from typing import Optional, List
+import os
 from fastapi import FastAPI, Query
 import requests
 from bs4 import BeautifulSoup as bs
-from constants import GAZETTE_BASE_URL, IULAAN_SEARCH_URL, JOB_CATEGORIES, IULAAN_TYPES
+from api_analytics.fastapi import Analytics
+from dotenv import load_dotenv
 from helpers import maldivian_to_iso
+from constants import GAZETTE_BASE_URL, IULAAN_SEARCH_URL, JOB_CATEGORIES, IULAAN_TYPES
 
-app = FastAPI()
+load_dotenv()
 
-# Constants from config.py
+app = FastAPI(title="Gazzette API", version="1.0.0")
+app.add_middleware(Analytics, api_key=os.getenv("API_KEY"))  # Add middleware
 
 
 def iulaan_search(
