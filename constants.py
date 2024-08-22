@@ -37,6 +37,7 @@ IULAAN_TYPES = {
     "rental": "kuyyah-hifun",
     "purchase": "gannan-beynunvaa",
     "announcement": "dhennevun",
+    "beelan": "beelan",
 }
 
 # Dictionary for Maldivian to English month translation
