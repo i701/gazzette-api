@@ -11,7 +11,7 @@ COPY ./requirements.txt /code/requirements.txt
 RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
 # Copy the ./ directory inside the /code directory.
-COPY ./ /code/app
+COPY app/ /code/app
 
 # Run the command to start the FastAPI server.
-CMD ["fastapi", "run", "main.py", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
