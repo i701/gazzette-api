@@ -8,6 +8,7 @@ from tortoise import Tortoise
 from decouple import config
 import time
 import random
+from app.utils.tg import notify_telegram
 
 
 @celery.task
@@ -28,6 +29,7 @@ async def update_stale_results():
 
     total_results = await Result.all().count()
     print("TOTAL RESULTS -> ", total_results)
+    updated_results_count = 0
     for db_result in await Result.all():
         time.sleep(random.uniform(1, 5))
         try:
@@ -37,10 +39,12 @@ async def update_stale_results():
                 updated_result_obj = await Result.filter(
                     search_key=db_result.search_key,
                 ).update(content=json.dumps(actual_result))
+                updated_results_count += 1
                 print(updated_result_obj)
         except DoesNotExist:
             print("Does not exist")
         except Exception as e:
             print(e)
     await asyncio.sleep(1)
+    notify_telegram(number=updated_results_count)
     return "Database results Updated!"

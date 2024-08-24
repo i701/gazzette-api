@@ -19,6 +19,8 @@ celery.autodiscover_tasks(["app"])
 celery.conf.beat_schedule = {
     "refresh-every-hour": {
         "task": "app.tasks.refresh_data",  # "schedule": crontab(minute=0, hour="*"),  # Runs every hour
-        "schedule": timedelta(hours=1),  # Runs every 1 seconds
+        "schedule": timedelta(
+            hours=config("REFRESH_TIME_HOURS", cast=int)
+        ),  # Runs every 1 seconds
     },
 }
