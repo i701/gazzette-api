@@ -36,5 +36,33 @@ services:
     ports:
       - 5432:5432
 
+  celery_worker:
+    build: .
+    command: celery -A app.utils worker --loglevel=info
+    volumes:
+      - .:/code
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=${DATABASE_URL}
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - postgres
+
+  celery_beat:
+    build: .
+    command: celery -A app.utils beat --loglevel=info
+    volumes:
+      - .:/code
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=${DATABASE_URL}
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - postgres
+
 volumes:
   redis_data:
