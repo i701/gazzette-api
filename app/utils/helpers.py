@@ -4,6 +4,7 @@ from datetime import datetime
 import re
 from app.utils.constants import MONTH_TRANSLATIONS
 from typing import Optional, List
+import httpx
 import requests
 from bs4 import BeautifulSoup as bs
 from app.utils.constants import (
@@ -63,7 +64,7 @@ def maldivian_to_iso(date_str):
     return iso_date
 
 
-def iulaan_search(
+async def iulaan_search(
     page: int = 1,
     iulaan_type: str = "",
     category: Optional[str] = "",
@@ -93,7 +94,92 @@ def iulaan_search(
     )
     print("GAZETTE URL -> ", url)
 
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        response = await client.get(url)
+        print("HTTPX status code (iulaan_search)-> ", response.status_code)
+    if response.status_code == 200:
+        soup = bs(response.content, "html.parser")
+        soup.prettify()
+        items = soup.find_all("div", class_="items")
+        total = soup.find("div", class_="iulaan-type-title")
+        total_results = total.text.split(" ")[1].strip()
+        total_pages = current_page = next_page_link = None
+        meta_data["total_results"] = int(total_results)
+
+        pagination = soup.find("ul", class_="pagination")
+        if pagination:
+            total_pages_items = pagination.find_all("li")
+            if len(total_pages_items) > 1:
+                total_pages = total_pages_items[-2].text.strip()
+                meta_data["total_pages"] = int(total_pages)
+            else:
+                total_pages = "1"
+                meta_data["total_pages"] = int(total_pages)
+
+            current_page_item = pagination.find("li", class_="active")
+            if current_page_item:
+                current_page = current_page_item.text.strip()
+                meta_data["current_page"] = int(current_page)
+            else:
+                current_page = "1"
+                meta_data["current_page"] = int(current_page)
+
+            if len(total_pages_items) > 1:
+                next_page_link = total_pages_items[-1].find("a")["href"]
+                meta_data["next_page_link"] = next_page_link
+            else:
+                next_page_link = None
+
+        for item in items:
+            item_body = {}
+
+            title = item.find("a", class_="iulaan-title")
+            item_body["url"] = title.get("href")
+            item_body["id"] = [
+                int(segment)
+                for segment in item_body["url"].split("/")
+                if segment.isdigit()
+            ][0]
+            item_body["title"] = title.text
+
+            vendor = item.find("a", class_="iulaan-office")
+            iulaan_type = item.find("a", class_="iulaan-type")
+
+            item_body["vendor"] = vendor.text.strip()
+            item_body["vendor_url"] = vendor.get("href").strip()
+            item_body["iulaan_type"] = iulaan_type.text.strip()
+            info = item.find_all("div", class_="info")
+
+            for i in info:
+                my_list = i.text.strip().split()[1:]
+
+                if len(my_list) == 3:
+                    date = " ".join(my_list)
+                    item_body["date"] = maldivian_to_iso(date)
+                if len(my_list) == 4:
+                    deadline = " ".join(my_list)
+                    item_body["deadline"] = maldivian_to_iso(deadline)
+
+            return_data.append(item_body)
+
+    return_data = {"meta_data": meta_data, "results": return_data}
+    return (return_data, url)
+
+
+async def iulaan_search_with_url(
+    url: Optional[str] = "",
+) -> List[dict]:
+    """Search for listings from url."""
+    return_data = []
+    meta_data = {}
     response = requests.get(url, timeout=10)
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        response = await client.get(url)
+        print("httpx status code (iulaan_search_with_url) -> ", response.status_code)
+        if response.status_code == 301:
+            print("trying with requests...")
+            response = requests.get(url, timeout=10)
+
     if response.status_code == 200:
         soup = bs(response.content, "html.parser")
         soup.prettify()
