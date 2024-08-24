@@ -61,7 +61,7 @@ async def search(
         response = await Result_Pydantic.from_tortoise_orm(result_exists)
         return response
 
-    results = iulaan_search(
+    results, url = await iulaan_search(
         category=category,
         iulaan_type=iulaan_type,
         open_only=open_only,
@@ -75,7 +75,7 @@ async def search(
     try:
         print(f"New key: {SEARCH_KEY}. Creating new result in DB.")
         new_result_obj = await Result.create(
-            search_key=SEARCH_KEY, content=json.dumps(results)
+            search_key=SEARCH_KEY, content=json.dumps(results), url=url
         )
         response = await Result_Pydantic.from_tortoise_orm(new_result_obj)
         return response
