@@ -6,6 +6,7 @@ from tortoise.contrib.pydantic import pydantic_model_creator
 class Result(Model):
     id = fields.UUIDField(pk=True)
     search_key = fields.CharField(max_length=256, unique=True)
+    url = fields.CharField(max_length=512)
     content = fields.JSONField()
 
 
