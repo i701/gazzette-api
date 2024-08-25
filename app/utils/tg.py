@@ -5,19 +5,12 @@ TG_BOT_TOKEN = config("TG_BOT_TOKEN")
 CHAT_ID = config("TG_CHATID")
 
 
-def notify_telegram(number=None):
-    # message = (
-    #     """
-    #         Stale results updated
-    #         Date: **{0}**
-    #         Total: **{1}** Results.
-    #         """.format(
-    #         today,
-    #         number,
-    #     ),
-    # )
+def notify_telegram(number=None, total_rows=None, duration=None):
+
     message = f"""
         <b>Gazzette Stale results updated!</b>
+        <i>Total time taken: <strong>{f"{duration:.2f}"} seconds</strong></i>
+        <i>Total rows in database: <strong>{total_rows}</strong></i>
         <i>Total results updated: <strong>{number}</strong></i>
         """
     response = requests.post(

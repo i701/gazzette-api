@@ -30,6 +30,8 @@ async def update_stale_results():
     total_results = await Result.all().count()
     print("TOTAL RESULTS -> ", total_results)
     updated_results_count = 0
+    start_time = time.time()
+
     for db_result in await Result.all():
         time.sleep(random.uniform(1, 5))
         try:
@@ -45,6 +47,10 @@ async def update_stale_results():
             print("Does not exist")
         except Exception as e:
             print(e)
+
+    end_time = time.time()
+    total_duration = end_time - start_time
+
     await asyncio.sleep(1)
-    notify_telegram(number=updated_results_count)
+    notify_telegram(number=updated_results_count, total_rows=total_results, duration=total_duration)
     return "Database results Updated!"
