@@ -125,10 +125,15 @@ async def iulaan_search(
                 meta_data["current_page"] = int(current_page)
 
             if len(total_pages_items) > 1:
-                next_page_link = total_pages_items[-1].find("a")["href"]
-                meta_data["next_page_link"] = next_page_link
+                last_item = total_pages_items[-1].find("a")
+                if last_item is not None and "href" in last_item.attrs:
+                    next_page_link = last_item["href"]
+                else:
+                    next_page_link = None
             else:
                 next_page_link = None
+
+            meta_data["next_page_link"] = next_page_link
 
         for item in items:
             item_body = {}
