@@ -39,6 +39,7 @@ services:
   celery_worker:
     build: .
     command: celery -A app.utils worker --loglevel=info
+    restart: unless-stopped
     volumes:
       - .:/code
     environment:
@@ -53,6 +54,7 @@ services:
   celery_beat:
     build: .
     command: celery -A app.utils beat --loglevel=info
+    restart: unless-stopped
     volumes:
       - .:/code
     environment:
