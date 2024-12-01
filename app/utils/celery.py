@@ -1,6 +1,7 @@
 from celery.app import Celery
 from decouple import config
 from celery.schedules import crontab
+from datetime import timedelta
 
 redis_url = config("REDIS_URL")
 
@@ -19,9 +20,7 @@ celery.autodiscover_tasks(["app"])
 celery.conf.beat_schedule = {
     "refresh-every-hour": {
         "task": "app.tasks.refresh_data",
-        "schedule": crontab(minute=0, hour="*"),  # Runs every hour
-        # "schedule": timedelta(
-            # hours=config("REFRESH_TIME_HOURS", cast=int)
-        # ),  # Runs every 1 seconds
+        # "schedule": crontab(minute=0, hour="*"),  # Runs every hour
+        "schedule": timedelta(minutes=config("REFRESH_TIME_MINUTES", cast=int)),
     },
 }
