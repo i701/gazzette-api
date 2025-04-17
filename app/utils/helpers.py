@@ -36,6 +36,7 @@ def maldivian_to_iso(date_str):
     time_str = None
 
     for part in parts:
+        print("part -> ", part)
         component_type = detect_component(part)
         if component_type == "day":
             day = part
@@ -45,7 +46,9 @@ def maldivian_to_iso(date_str):
             year = part
         elif component_type == "time":
             time_str = part
-
+    print("day -> ", day)
+    print("month -> ", month)
+    print("year -> ", year)
     if day is None or month is None or year is None:
         raise ValueError("Date string is missing required components")
 

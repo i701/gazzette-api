@@ -48,7 +48,7 @@ MONTH_TRANSLATIONS = {
     "February": "February",
     "މާރިޗު": "March",
     "March": "March",
-    "އޭޕްރިލް": "April",
+    "އެޕްރީލް": "April",
     "April": "April",
     "މޭ": "May",
     "May": "May",
