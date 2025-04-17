@@ -49,6 +49,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=${DATABASE_URL}
+      - BROKER_URL=redis://redis:6379/0
+      - RESULT_BACKEND=redis://redis:6379/0
     env_file:
       - .env
     depends_on:
@@ -64,6 +66,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=${DATABASE_URL}
+      - BROKER_URL=redis://redis:6379/0
+      - RESULT_BACKEND=redis://redis:6379/0
     env_file:
       - .env
     depends_on:
