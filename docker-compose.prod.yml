@@ -1,11 +1,9 @@
 services:
   api:
     build: .
-    command: uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+    restart: always
     ports:
       - "8000:8000"
-    volumes:
-      - .:/code
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=${DATABASE_URL}
@@ -20,9 +18,7 @@ services:
   worker:
     build: .
     command: uv run python -m app.worker
-    restart: unless-stopped
-    volumes:
-      - .:/code
+    restart: always
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=${DATABASE_URL}
@@ -37,8 +33,7 @@ services:
   redis:
     image: redis:latest
     command: ["redis-server", "--replicaof", "no", "one"]
-    ports:
-      - "6400:6379"
+    restart: always
     volumes:
       - redis_data:/data
     healthcheck:
@@ -49,7 +44,7 @@ services:
 
   postgres:
     platform: linux/amd64
-    restart: unless-stopped
+    restart: always
     env_file: .env
     image: postgres:12.0-alpine
     environment:
@@ -57,9 +52,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: gazzette-db
     volumes:
-      - ./pg_data:/var/lib/postgresql/data/
-    ports:
-      - 5432:5432
+      - pg_data:/var/lib/postgresql/data/
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d gazzette-db"]
       interval: 10s
@@ -68,3 +61,4 @@ services:
 
 volumes:
   redis_data:
+  pg_data:

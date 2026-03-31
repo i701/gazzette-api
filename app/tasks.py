@@ -1,9 +1,8 @@
-from app.utils.celery import celery
+from app.utils.procrastinate_app import procrastinate_app
 from app.utils.helpers import iulaan_search_with_url
 from app.models.models import Result
 import json
 from tortoise.exceptions import DoesNotExist
-import asyncio
 from tortoise import Tortoise
 from decouple import config
 import time
@@ -11,14 +10,20 @@ import random
 from app.utils.tg import notify_telegram
 
 
-@celery.task
-def refresh_data():
-    loop = asyncio.get_event_loop()
-    if loop.is_closed():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    result = loop.run_until_complete(update_stale_results())
-    return result
+_refresh_minutes = config("REFRESH_TIME_MINUTES", cast=int, default=60)
+if _refresh_minutes < 60:
+    _cron = f"*/{_refresh_minutes} * * * *"
+elif _refresh_minutes % 60 == 0:
+    _hours = _refresh_minutes // 60
+    _cron = "0 * * * *" if _hours == 1 else f"0 */{_hours} * * *"
+else:
+    _cron = "0 * * * *"
+
+
+@procrastinate_app.periodic(cron=_cron)
+@procrastinate_app.task
+async def refresh_data(timestamp: int) -> None:
+    await update_stale_results()
 
 
 async def update_stale_results():
@@ -51,6 +56,8 @@ async def update_stale_results():
     end_time = time.time()
     total_duration = end_time - start_time
 
-    await asyncio.sleep(1)
-    notify_telegram(number=updated_results_count, total_rows=total_results, duration=total_duration)
-    return "Database results Updated!"
+    notify_telegram(
+        number=updated_results_count,
+        total_rows=total_results,
+        duration=total_duration,
+    )

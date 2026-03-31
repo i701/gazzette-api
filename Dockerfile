@@ -1,17 +1,12 @@
-# Start from the official Python base image.
 FROM python:3.12-slim-bookworm
 
-# Set the current working directory to /code
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 WORKDIR /code
 
-# Copy the file with the requirements to the /code directory.
-COPY ./requirements.txt /code/requirements.txt
+COPY pyproject.toml ./
+RUN uv sync --no-dev
 
-# Install the package dependencies in the requirements file.
-RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+COPY app/ ./app/
 
-# Copy the ./ directory inside the /code directory.
-COPY app/ /code/app
-
-# Run the command to start the FastAPI server.
-CMD ["uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

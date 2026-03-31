@@ -163,10 +163,18 @@ async def iulaan_search(
 
                 if len(my_list) == 3:
                     date = " ".join(my_list)
-                    item_body["date"] = maldivian_to_iso(date)
+                    try:
+                        item_body["date"] = maldivian_to_iso(date)
+                    except ValueError:
+                        print(f"Failed to parse date: {date!r}")
+                        item_body["date"] = None
                 if len(my_list) == 4:
                     deadline = " ".join(my_list)
-                    item_body["deadline"] = maldivian_to_iso(deadline)
+                    try:
+                        item_body["deadline"] = maldivian_to_iso(deadline)
+                    except ValueError:
+                        print(f"Failed to parse deadline: {deadline!r}")
+                        item_body["deadline"] = None
 
             return_data.append(item_body)
 
@@ -246,10 +254,18 @@ async def iulaan_search_with_url(
 
                 if len(my_list) == 3:
                     date = " ".join(my_list)
-                    item_body["date"] = maldivian_to_iso(date)
+                    try:
+                        item_body["date"] = maldivian_to_iso(date)
+                    except ValueError:
+                        print(f"Failed to parse date: {date!r}")
+                        item_body["date"] = None
                 if len(my_list) == 4:
                     deadline = " ".join(my_list)
-                    item_body["deadline"] = maldivian_to_iso(deadline)
+                    try:
+                        item_body["deadline"] = maldivian_to_iso(deadline)
+                    except ValueError:
+                        print(f"Failed to parse deadline: {deadline!r}")
+                        item_body["deadline"] = None
 
             return_data.append(item_body)
 

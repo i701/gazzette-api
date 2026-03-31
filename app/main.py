@@ -16,21 +16,24 @@ from fastapi_cache.decorator import cache
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from redis import asyncio as aioredis
+import psycopg_pool
 from tortoise.contrib.fastapi import register_tortoise
 from tortoise.exceptions import NotExistOrMultiple
 from app.models.models import Result, Result_Pydantic
+from app.utils.procrastinate_app import procrastinate_app
 import json
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    redis = aioredis.from_url(
-        config(
-            "REDIS_URL",
-        )
-    )
+    redis = aioredis.from_url(config("REDIS_URL"))
     FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
-    yield
+
+    db_url = config("DATABASE_URL").replace("postgres://", "postgresql://")
+    async with psycopg_pool.AsyncConnectionPool(conninfo=db_url, open=False) as pool:
+        async with procrastinate_app.open_async(pool=pool):
+            await procrastinate_app.schema_manager.apply_schema_async()
+            yield
 
 
 app = FastAPI(title="Gazzette API", version="1.0.0", lifespan=lifespan)
