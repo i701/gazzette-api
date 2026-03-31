@@ -17,6 +17,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from redis import asyncio as aioredis
 import psycopg_pool
+from psycopg.errors import DuplicateObject, DuplicateTable
 from tortoise.contrib.fastapi import register_tortoise
 from tortoise.exceptions import NotExistOrMultiple
 from app.models.models import Result, Result_Pydantic
@@ -32,7 +33,16 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     db_url = config("DATABASE_URL").replace("postgres://", "postgresql://")
     async with psycopg_pool.AsyncConnectionPool(conninfo=db_url, open=False) as pool:
         async with procrastinate_app.open_async(pool=pool):
-            await procrastinate_app.schema_manager.apply_schema_async()
+            try:
+                await procrastinate_app.schema_manager.apply_schema_async()
+            except Exception as e:
+                if e.__cause__ and isinstance(e.__cause__, (DuplicateObject, DuplicateTable)):
+                    # Schema already exists from a previous run — this is fine.
+                    # To upgrade the schema after a procrastinate version bump, run:
+                    #   uv run procrastinate --app app.utils.procrastinate_app.procrastinate_app migrate
+                    pass
+                else:
+                    raise
             yield
 
 
