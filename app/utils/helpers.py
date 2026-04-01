@@ -36,7 +36,6 @@ def maldivian_to_iso(date_str):
     time_str = None
 
     for part in parts:
-        print("part -> ", part)
         component_type = detect_component(part)
         if component_type == "day":
             day = part
@@ -46,9 +45,6 @@ def maldivian_to_iso(date_str):
             year = part
         elif component_type == "time":
             time_str = part
-    print("day -> ", day)
-    print("month -> ", month)
-    print("year -> ", year)
     if day is None or month is None or year is None:
         raise ValueError("Date string is missing required components")
 
@@ -67,6 +63,7 @@ def maldivian_to_iso(date_str):
     return iso_date
 
 
+
 async def iulaan_search(
     page: int = 1,
     iulaan_type: str = "",
@@ -80,13 +77,6 @@ async def iulaan_search(
     """Search for job and tender listings based on provided parameters."""
     return_data = []
     meta_data = {}
-    print("IULAAN TYPE -> ", iulaan_type)
-    print("JOB CATEGORY -> ", category)
-    print("Q -> ", q)
-    print("OPEN ONLY -> ", open_only)
-    print("START DATE -> ", start_date)
-    print("END DATE -> ", end_date)
-    print("OFFICE -> ", office)
     url = (
         f"{GAZETTE_BASE_URL}{IULAAN_SEARCH_URL}?"
         f"type={iulaan_type}&job-category={category}"
@@ -95,11 +85,8 @@ async def iulaan_search(
         f"&open-only={open_only}"
         f"&q={q}"
     )
-    print("GAZETTE URL -> ", url)
-
     async with httpx.AsyncClient(follow_redirects=True) as client:
         response = await client.get(url)
-        print("HTTPX status code (iulaan_search)-> ", response.status_code)
     if response.status_code == 200:
         soup = bs(response.content, "html.parser")
         soup.prettify()
@@ -159,22 +146,16 @@ async def iulaan_search(
             info = item.find_all("div", class_="info")
 
             for i in info:
-                my_list = i.text.strip().split()[1:]
-
-                if len(my_list) == 3:
-                    date = " ".join(my_list)
-                    try:
-                        item_body["date"] = maldivian_to_iso(date)
-                    except ValueError:
-                        print(f"Failed to parse date: {date!r}")
-                        item_body["date"] = None
-                if len(my_list) == 4:
-                    deadline = " ".join(my_list)
-                    try:
-                        item_body["deadline"] = maldivian_to_iso(deadline)
-                    except ValueError:
-                        print(f"Failed to parse deadline: {deadline!r}")
-                        item_body["deadline"] = None
+                text = i.text.strip()
+                has_time = any(re.match(r"^\d{2}:\d{2}$", p) for p in text.split())
+                try:
+                    parsed = maldivian_to_iso(text)
+                    if has_time:
+                        item_body["deadline"] = parsed
+                    else:
+                        item_body["date"] = parsed
+                except ValueError:
+                    pass
 
             return_data.append(item_body)
 
@@ -191,9 +172,7 @@ async def iulaan_search_with_url(
     response = requests.get(url, timeout=10)
     async with httpx.AsyncClient(follow_redirects=True) as client:
         response = await client.get(url)
-        print("httpx status code (iulaan_search_with_url) -> ", response.status_code)
         if response.status_code == 301:
-            print("trying with requests...")
             response = requests.get(url, timeout=10)
 
     if response.status_code == 200:
@@ -250,22 +229,16 @@ async def iulaan_search_with_url(
             info = item.find_all("div", class_="info")
 
             for i in info:
-                my_list = i.text.strip().split()[1:]
-
-                if len(my_list) == 3:
-                    date = " ".join(my_list)
-                    try:
-                        item_body["date"] = maldivian_to_iso(date)
-                    except ValueError:
-                        print(f"Failed to parse date: {date!r}")
-                        item_body["date"] = None
-                if len(my_list) == 4:
-                    deadline = " ".join(my_list)
-                    try:
-                        item_body["deadline"] = maldivian_to_iso(deadline)
-                    except ValueError:
-                        print(f"Failed to parse deadline: {deadline!r}")
-                        item_body["deadline"] = None
+                text = i.text.strip()
+                has_time = any(re.match(r"^\d{2}:\d{2}$", p) for p in text.split())
+                try:
+                    parsed = maldivian_to_iso(text)
+                    if has_time:
+                        item_body["deadline"] = parsed
+                    else:
+                        item_body["date"] = parsed
+                except ValueError:
+                    pass
 
             return_data.append(item_body)
 

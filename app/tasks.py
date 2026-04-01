@@ -1,13 +1,17 @@
+import json
+import logging
+import random
+import time
+
+from decouple import config
+from tortoise.exceptions import DoesNotExist
+
 from app.utils.procrastinate_app import procrastinate_app
 from app.utils.helpers import iulaan_search_with_url
 from app.models.models import Result
-import json
-from tortoise.exceptions import DoesNotExist
-from tortoise import Tortoise
-from decouple import config
-import time
-import random
 from app.utils.tg import notify_telegram
+
+logger = logging.getLogger(__name__)
 
 
 _refresh_minutes = config("REFRESH_TIME_MINUTES", cast=int, default=60)
@@ -27,13 +31,8 @@ async def refresh_data(timestamp: int) -> None:
 
 
 async def update_stale_results():
-    await Tortoise.init(
-        db_url=config("DATABASE_URL", cast=str),
-        modules={"models": ["app.models"]},
-    )
-
     total_results = await Result.all().count()
-    print("TOTAL RESULTS -> ", total_results)
+    logger.info("Updating stale results. Total in DB: %d", total_results)
     updated_results_count = 0
     start_time = time.time()
 
@@ -42,20 +41,21 @@ async def update_stale_results():
         try:
             actual_result = await iulaan_search_with_url(db_result.url)
             if db_result.content != actual_result:
-                print("CONTENT CHANGED!!")
-                updated_result_obj = await Result.filter(
-                    search_key=db_result.search_key,
-                ).update(content=json.dumps(actual_result))
+                logger.info("Content changed for key: %s", db_result.search_key)
+                await Result.filter(search_key=db_result.search_key).update(
+                    content=json.dumps(actual_result)
+                )
                 updated_results_count += 1
-                print(updated_result_obj)
         except DoesNotExist:
-            print("Does not exist")
+            pass
         except Exception as e:
-            print(e)
+            logger.error("Error updating result %s: %s", db_result.search_key, e)
 
-    end_time = time.time()
-    total_duration = end_time - start_time
-
+    total_duration = time.time() - start_time
+    logger.info(
+        "Done. %d/%d results updated, took %.1fs.",
+        updated_results_count, total_results, total_duration,
+    )
     notify_telegram(
         number=updated_results_count,
         total_rows=total_results,

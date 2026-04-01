@@ -1,5 +1,6 @@
 """Main module for the Gazette API, providing job and tender search functionality."""
 
+import json
 from typing import Optional
 from fastapi import FastAPI, Query
 from api_analytics.fastapi import Analytics
@@ -22,7 +23,6 @@ from tortoise.contrib.fastapi import register_tortoise
 from tortoise.exceptions import NotExistOrMultiple
 from app.models.models import Result, Result_Pydantic
 from app.utils.procrastinate_app import procrastinate_app
-import json
 
 
 @asynccontextmanager
@@ -50,8 +50,8 @@ app = FastAPI(title="Gazzette API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(Analytics, api_key=config("API_KEY"))  # Add middleware
 
 
-@cache(expire=60)
 @app.get("/search")
+@cache(expire=60)
 async def search(
     page: int = Query(1, ge=1),
     iulaan_type: Optional[str] = Query("", enum=list(IULAAN_TYPES.values())),
@@ -64,13 +64,10 @@ async def search(
 ):
     """Search for iulaan listings based on provided parameters."""
 
-    # Generate a unique key based on search parameters (URL or a hash)
     SEARCH_KEY = f"{iulaan_type}-{category}-{q}-{open_only}-{start_date}-{end_date}-{office}-{page}".strip()
-    print(SEARCH_KEY)
 
     result_exists = await Result.filter(search_key=SEARCH_KEY).first()
     if result_exists:
-        print(f"Result with key: {SEARCH_KEY} already exists. Fetching from DB.")
         response = await Result_Pydantic.from_tortoise_orm(result_exists)
         return response
 
@@ -86,7 +83,6 @@ async def search(
     )
 
     try:
-        print(f"New key: {SEARCH_KEY}. Creating new result in DB.")
         new_result_obj = await Result.create(
             search_key=SEARCH_KEY, content=json.dumps(results), url=url
         )

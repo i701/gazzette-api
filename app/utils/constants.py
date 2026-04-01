@@ -48,7 +48,8 @@ MONTH_TRANSLATIONS = {
     "February": "February",
     "މާރިޗު": "March",
     "March": "March",
-    "އެޕްރީލް": "April",
+    "އެޕްރީލް": "April",  # alternative spelling (may appear in some posts)
+    "އޭޕްރިލް": "April",  # spelling used by gazette.gov.mv
     "April": "April",
     "މޭ": "May",
     "May": "May",
