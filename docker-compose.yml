@@ -16,6 +16,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      # Healthy only once lifespan has applied the procrastinate schema
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/openapi.json')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 60s
 
   worker:
     build: .
@@ -32,7 +39,7 @@ services:
       postgres:
         condition: service_healthy
       api:
-        condition: service_started
+        condition: service_healthy
 
   redis:
     image: redis:latest
@@ -51,13 +58,13 @@ services:
     platform: linux/amd64
     restart: unless-stopped
     env_file: .env
-    image: postgres:12.0-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: gazzette-db
     volumes:
-      - ./pg_data:/var/lib/postgresql/data/
+      - postgres_data:/var/lib/postgresql
     ports:
       - 5432:5432
     healthcheck:
@@ -68,3 +75,4 @@ services:
 
 volumes:
   redis_data:
+  postgres_data:

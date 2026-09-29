@@ -1,5 +1,5 @@
-from decouple import config
 import requests
+from decouple import config
 
 TG_BOT_TOKEN = config("TG_BOT_TOKEN")
 CHAT_ID = config("TG_CHATID")
@@ -14,7 +14,7 @@ def notify_telegram(number=None, total_rows=None, duration=None):
         <i>Total results updated: <strong>{number}</strong></i>
         """
     response = requests.post(
-        url="https://api.telegram.org/bot{0}/sendMessage".format(TG_BOT_TOKEN),
+        url=f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage",
         data={"chat_id": CHAT_ID, "text": message, "parse_mode": "html"},
     ).json()
 

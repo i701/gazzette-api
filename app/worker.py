@@ -2,11 +2,13 @@
 
 import asyncio
 import logging
+
 import psycopg_pool
 from decouple import config
 from tortoise import Tortoise
-from app.utils.procrastinate_app import procrastinate_app
+
 import app.tasks  # noqa: F401 — registers tasks with procrastinate_app
+from app.utils.procrastinate_app import procrastinate_app
 
 logging.basicConfig(
     level=logging.INFO,
