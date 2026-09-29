@@ -1,16 +1,27 @@
 """Helper functions for the Gazette API."""
 
-from datetime import datetime
 import re
-from app.utils.constants import MONTH_TRANSLATIONS
-from typing import Optional, List
+from datetime import datetime
+
 import httpx
-import requests
-from bs4 import BeautifulSoup as bs
+from decouple import config
+from selectolax.lexbor import LexborHTMLParser
+
 from app.utils.constants import (
     GAZETTE_BASE_URL,
     IULAAN_SEARCH_URL,
+    MONTH_TRANSLATIONS,
 )
+
+# gazette.gov.mv regularly takes 5-10s to answer keyword searches, which is
+# longer than httpx's 5s default. Keep the read timeout generous.
+GAZETTE_TIMEOUT = httpx.Timeout(
+    config("GAZETTE_TIMEOUT_SECONDS", cast=float, default=30.0), connect=10.0
+)
+
+
+class UpstreamError(Exception):
+    """Raised when gazette.gov.mv times out or returns a non-200 response."""
 
 
 def detect_component(part):
@@ -63,20 +74,116 @@ def maldivian_to_iso(date_str):
     return iso_date
 
 
+_client: httpx.AsyncClient | None = None
+
+
+def get_client() -> httpx.AsyncClient:
+    """Return a shared client so connections (and TLS) are reused across requests."""
+    global _client
+    if _client is None or _client.is_closed:
+        _client = httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=GAZETTE_TIMEOUT,
+            # Retries connection failures only; read timeouts are not retried.
+            transport=httpx.AsyncHTTPTransport(retries=2),
+        )
+    return _client
+
+
+async def close_client() -> None:
+    global _client
+    if _client is not None:
+        await _client.aclose()
+        _client = None
+
+
+async def fetch_html(url: str) -> bytes:
+    """Fetch a gazette page, raising UpstreamError on timeouts or bad responses."""
+    try:
+        response = await get_client().get(url)
+    except httpx.TimeoutException as e:
+        raise UpstreamError(f"Timed out fetching {url}") from e
+    except httpx.HTTPError as e:
+        raise UpstreamError(f"Error fetching {url}: {e!r}") from e
+    if response.status_code != 200:
+        raise UpstreamError(f"Got HTTP {response.status_code} from {url}")
+    return response.content
+
+
+def parse_listing(html: bytes) -> dict:
+    """Parse an iulaan listing page into meta data and results."""
+    tree = LexborHTMLParser(html)
+    meta_data = {}
+    results = []
+
+    total = tree.css_first("div.iulaan-type-title")
+    meta_data["total_results"] = (
+        int(total.text().split(" ")[1].strip()) if total is not None else 0
+    )
+
+    pagination = tree.css_first("ul.pagination")
+    if pagination is not None:
+        page_items = pagination.css("li")
+        if len(page_items) > 1:
+            meta_data["total_pages"] = int(page_items[-2].text().strip())
+        else:
+            meta_data["total_pages"] = 1
+
+        active = pagination.css_first("li.active")
+        meta_data["current_page"] = int(active.text().strip()) if active else 1
+
+        next_page_link = None
+        if len(page_items) > 1:
+            last_link = page_items[-1].css_first("a")
+            if last_link is not None:
+                next_page_link = last_link.attributes.get("href")
+        meta_data["next_page_link"] = next_page_link
+
+    for item in tree.css("div.items"):
+        item_body = {}
+
+        title = item.css_first("a.iulaan-title")
+        item_body["url"] = title.attributes.get("href")
+        item_body["id"] = [
+            int(segment) for segment in item_body["url"].split("/") if segment.isdigit()
+        ][0]
+        item_body["title"] = title.text()
+
+        vendor = item.css_first("a.iulaan-office")
+        iulaan_type = item.css_first("a.iulaan-type")
+
+        item_body["vendor"] = vendor.text().strip()
+        item_body["vendor_url"] = vendor.attributes.get("href").strip()
+        item_body["iulaan_type"] = iulaan_type.text().strip()
+
+        for info in item.css("div.info"):
+            text = info.text().strip()
+            has_time = any(re.match(r"^\d{2}:\d{2}$", p) for p in text.split())
+            try:
+                parsed = maldivian_to_iso(text)
+                if has_time:
+                    item_body["deadline"] = parsed
+                else:
+                    item_body["date"] = parsed
+            except ValueError:
+                pass
+
+        results.append(item_body)
+
+    return {"meta_data": meta_data, "results": results}
+
 
 async def iulaan_search(
     page: int = 1,
     iulaan_type: str = "",
-    category: Optional[str] = "",
-    q: Optional[str] = "",
+    category: str | None = "",
+    q: str | None = "",
     open_only: int = 0,
-    start_date: Optional[str] = "",
-    end_date: Optional[str] = "",
-    office: Optional[str] = "",
-) -> List[dict]:
+    start_date: str | None = "",
+    end_date: str | None = "",
+    office: str | None = "",
+) -> tuple[dict, str]:
     """Search for job and tender listings based on provided parameters."""
-    return_data = []
-    meta_data = {}
     url = (
         f"{GAZETTE_BASE_URL}{IULAAN_SEARCH_URL}?"
         f"type={iulaan_type}&job-category={category}"
@@ -85,162 +192,9 @@ async def iulaan_search(
         f"&open-only={open_only}"
         f"&q={q}"
     )
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        response = await client.get(url)
-    if response.status_code == 200:
-        soup = bs(response.content, "html.parser")
-        soup.prettify()
-        items = soup.find_all("div", class_="items")
-        total = soup.find("div", class_="iulaan-type-title")
-        total_results = total.text.split(" ")[1].strip()
-        total_pages = current_page = next_page_link = None
-        meta_data["total_results"] = int(total_results)
-
-        pagination = soup.find("ul", class_="pagination")
-        if pagination:
-            total_pages_items = pagination.find_all("li")
-            if len(total_pages_items) > 1:
-                total_pages = total_pages_items[-2].text.strip()
-                meta_data["total_pages"] = int(total_pages)
-            else:
-                total_pages = "1"
-                meta_data["total_pages"] = int(total_pages)
-
-            current_page_item = pagination.find("li", class_="active")
-            if current_page_item:
-                current_page = current_page_item.text.strip()
-                meta_data["current_page"] = int(current_page)
-            else:
-                current_page = "1"
-                meta_data["current_page"] = int(current_page)
-
-            if len(total_pages_items) > 1:
-                last_item = total_pages_items[-1].find("a")
-                if last_item is not None and "href" in last_item.attrs:
-                    next_page_link = last_item["href"]
-                else:
-                    next_page_link = None
-            else:
-                next_page_link = None
-
-            meta_data["next_page_link"] = next_page_link
-
-        for item in items:
-            item_body = {}
-
-            title = item.find("a", class_="iulaan-title")
-            item_body["url"] = title.get("href")
-            item_body["id"] = [
-                int(segment)
-                for segment in item_body["url"].split("/")
-                if segment.isdigit()
-            ][0]
-            item_body["title"] = title.text
-
-            vendor = item.find("a", class_="iulaan-office")
-            iulaan_type = item.find("a", class_="iulaan-type")
-
-            item_body["vendor"] = vendor.text.strip()
-            item_body["vendor_url"] = vendor.get("href").strip()
-            item_body["iulaan_type"] = iulaan_type.text.strip()
-            info = item.find_all("div", class_="info")
-
-            for i in info:
-                text = i.text.strip()
-                has_time = any(re.match(r"^\d{2}:\d{2}$", p) for p in text.split())
-                try:
-                    parsed = maldivian_to_iso(text)
-                    if has_time:
-                        item_body["deadline"] = parsed
-                    else:
-                        item_body["date"] = parsed
-                except ValueError:
-                    pass
-
-            return_data.append(item_body)
-
-    return_data = {"meta_data": meta_data, "results": return_data}
-    return (return_data, url)
+    return parse_listing(await fetch_html(url)), url
 
 
-async def iulaan_search_with_url(
-    url: Optional[str] = "",
-) -> List[dict]:
+async def iulaan_search_with_url(url: str) -> dict:
     """Search for listings from url."""
-    return_data = []
-    meta_data = {}
-    response = requests.get(url, timeout=10)
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        response = await client.get(url)
-        if response.status_code == 301:
-            response = requests.get(url, timeout=10)
-
-    if response.status_code == 200:
-        soup = bs(response.content, "html.parser")
-        soup.prettify()
-        items = soup.find_all("div", class_="items")
-        total = soup.find("div", class_="iulaan-type-title")
-        total_results = total.text.split(" ")[1].strip()
-        total_pages = current_page = next_page_link = None
-        meta_data["total_results"] = int(total_results)
-
-        pagination = soup.find("ul", class_="pagination")
-        if pagination:
-            total_pages_items = pagination.find_all("li")
-            if len(total_pages_items) > 1:
-                total_pages = total_pages_items[-2].text.strip()
-                meta_data["total_pages"] = int(total_pages)
-            else:
-                total_pages = "1"
-                meta_data["total_pages"] = int(total_pages)
-
-            current_page_item = pagination.find("li", class_="active")
-            if current_page_item:
-                current_page = current_page_item.text.strip()
-                meta_data["current_page"] = int(current_page)
-            else:
-                current_page = "1"
-                meta_data["current_page"] = int(current_page)
-
-            if len(total_pages_items) > 1:
-                next_page_link = total_pages_items[-1].find("a")["href"]
-                meta_data["next_page_link"] = next_page_link
-            else:
-                next_page_link = None
-
-        for item in items:
-            item_body = {}
-
-            title = item.find("a", class_="iulaan-title")
-            item_body["url"] = title.get("href")
-            item_body["id"] = [
-                int(segment)
-                for segment in item_body["url"].split("/")
-                if segment.isdigit()
-            ][0]
-            item_body["title"] = title.text
-
-            vendor = item.find("a", class_="iulaan-office")
-            iulaan_type = item.find("a", class_="iulaan-type")
-
-            item_body["vendor"] = vendor.text.strip()
-            item_body["vendor_url"] = vendor.get("href").strip()
-            item_body["iulaan_type"] = iulaan_type.text.strip()
-            info = item.find_all("div", class_="info")
-
-            for i in info:
-                text = i.text.strip()
-                has_time = any(re.match(r"^\d{2}:\d{2}$", p) for p in text.split())
-                try:
-                    parsed = maldivian_to_iso(text)
-                    if has_time:
-                        item_body["deadline"] = parsed
-                    else:
-                        item_body["date"] = parsed
-                except ValueError:
-                    pass
-
-            return_data.append(item_body)
-
-    return_data = {"meta_data": meta_data, "results": return_data}
-    return return_data
+    return parse_listing(await fetch_html(url))

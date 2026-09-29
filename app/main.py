@@ -1,27 +1,26 @@
 """Main module for the Gazette API, providing job and tender search functionality."""
 
 import json
-from typing import Optional
-from fastapi import FastAPI, Query
-from api_analytics.fastapi import Analytics
-from app.utils.constants import (
-    JOB_CATEGORIES,
-    IULAAN_TYPES,
-)
-from decouple import config
-from app.utils.helpers import iulaan_search
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
+import psycopg_pool
+from decouple import config
+from fastapi import FastAPI, HTTPException, Query
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from fastapi_cache.decorator import cache
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-from redis import asyncio as aioredis
-import psycopg_pool
 from psycopg.errors import DuplicateObject, DuplicateTable
+from redis import asyncio as aioredis
 from tortoise.contrib.fastapi import register_tortoise
 from tortoise.exceptions import NotExistOrMultiple
+
 from app.models.models import Result, Result_Pydantic
+from app.utils.constants import (
+    IULAAN_TYPES,
+    JOB_CATEGORIES,
+)
+from app.utils.helpers import UpstreamError, close_client, iulaan_search
 from app.utils.procrastinate_app import procrastinate_app
 
 
@@ -36,7 +35,9 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
             try:
                 await procrastinate_app.schema_manager.apply_schema_async()
             except Exception as e:
-                if e.__cause__ and isinstance(e.__cause__, (DuplicateObject, DuplicateTable)):
+                if e.__cause__ and isinstance(
+                    e.__cause__, (DuplicateObject, DuplicateTable)
+                ):
                     # Schema already exists from a previous run — this is fine.
                     # To upgrade the schema after a procrastinate version bump, run:
                     #   uv run procrastinate --app app.utils.procrastinate_app.procrastinate_app migrate
@@ -44,23 +45,23 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
                 else:
                     raise
             yield
+    await close_client()
 
 
 app = FastAPI(title="Gazzette API", version="1.0.0", lifespan=lifespan)
-app.add_middleware(Analytics, api_key=config("API_KEY"))  # Add middleware
 
 
 @app.get("/search")
 @cache(expire=60)
 async def search(
     page: int = Query(1, ge=1),
-    iulaan_type: Optional[str] = Query("", enum=list(IULAAN_TYPES.values())),
-    category: Optional[str] = Query("", enum=list(JOB_CATEGORIES.values())),
-    open_only: Optional[int] = Query(0, ge=0, le=1),
-    start_date: Optional[str] = Query(""),
-    end_date: Optional[str] = Query(""),
-    q: Optional[str] = Query(""),
-    office: Optional[str] = Query(""),
+    iulaan_type: str | None = Query("", enum=list(IULAAN_TYPES.values())),
+    category: str | None = Query("", enum=list(JOB_CATEGORIES.values())),
+    open_only: int | None = Query(0, ge=0, le=1),
+    start_date: str | None = Query(""),
+    end_date: str | None = Query(""),
+    q: str | None = Query(""),
+    office: str | None = Query(""),
 ):
     """Search for iulaan listings based on provided parameters."""
 
@@ -71,16 +72,21 @@ async def search(
         response = await Result_Pydantic.from_tortoise_orm(result_exists)
         return response
 
-    results, url = await iulaan_search(
-        category=category,
-        iulaan_type=iulaan_type,
-        open_only=open_only,
-        start_date=start_date,
-        end_date=end_date,
-        office=office,
-        q=q,
-        page=page,
-    )
+    try:
+        results, url = await iulaan_search(
+            category=category,
+            iulaan_type=iulaan_type,
+            open_only=open_only,
+            start_date=start_date,
+            end_date=end_date,
+            office=office,
+            q=q,
+            page=page,
+        )
+    except UpstreamError as e:
+        raise HTTPException(
+            status_code=502, detail="Could not reach gazette.gov.mv, please retry"
+        ) from e
 
     try:
         new_result_obj = await Result.create(

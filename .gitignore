@@ -2,4 +2,5 @@
 __pycache__
 .venv
 celerybeat-schedule
-pg_data
+pg_data.ruff_cache/
+pg_data/

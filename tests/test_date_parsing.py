@@ -8,15 +8,16 @@ Covers:
 """
 
 import re
+
 import pytest
 
-from app.utils.helpers import maldivian_to_iso, detect_component
 from app.utils.constants import MONTH_TRANSLATIONS
-
+from app.utils.helpers import detect_component, maldivian_to_iso
 
 # ---------------------------------------------------------------------------
 # detect_component
 # ---------------------------------------------------------------------------
+
 
 class TestDetectComponent:
     def test_day_single_digit(self):
@@ -32,15 +33,42 @@ class TestDetectComponent:
         assert detect_component("14:00") == "time"
 
     def test_english_month(self):
-        for eng in ["January", "February", "March", "April", "May", "June",
-                    "July", "August", "September", "October", "November", "December"]:
+        for eng in [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        ]:
             assert detect_component(eng) == "month", f"Failed for {eng!r}"
 
     def test_dhivehi_month(self):
-        dhivehi_months = [k for k in MONTH_TRANSLATIONS if k not in {
-            "January","February","March","April","May","June",
-            "July","August","September","October","November","December"
-        }]
+        dhivehi_months = [
+            k
+            for k in MONTH_TRANSLATIONS
+            if k
+            not in {
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
+            }
+        ]
         for m in dhivehi_months:
             assert detect_component(m) == "month", f"Failed for {m!r}"
 
@@ -55,6 +83,7 @@ class TestDetectComponent:
 # ---------------------------------------------------------------------------
 # maldivian_to_iso — English month names
 # ---------------------------------------------------------------------------
+
 
 class TestEnglishMonths:
     def test_plain_date_no_label(self):
@@ -94,6 +123,7 @@ class TestEnglishMonths:
 # maldivian_to_iso — Dhivehi (Thaana) month names
 # ---------------------------------------------------------------------------
 
+
 class TestDhivehiMonths:
     """
     Uses the exact Thaana strings stored in MONTH_TRANSLATIONS.
@@ -105,24 +135,24 @@ class TestDhivehiMonths:
         # "ތaaaRi" prefix would be the label; "ﮑARič" is the unknown form
         # Use the exact key from MONTH_TRANSLATIONS
         march_dv = "މaaaRiRiRiRiRiRiRiRi"  # placeholder — real key below
-        march_dv = [k for k, v in MONTH_TRANSLATIONS.items() if v == "March" and k != "March"][0]
+        march_dv = [
+            k for k, v in MONTH_TRANSLATIONS.items() if v == "March" and k != "March"
+        ][0]
         iso = maldivian_to_iso(f"31 {march_dv} 2026")
         assert iso == "2026-03-31T00:00:00"
 
     def test_april_dhivehi(self):
-        april_dv = [k for k, v in MONTH_TRANSLATIONS.items() if v == "April" and k != "April"][0]
+        april_dv = [
+            k for k, v in MONTH_TRANSLATIONS.items() if v == "April" and k != "April"
+        ][0]
         iso = maldivian_to_iso(f"11 {april_dv} 2026 00:00")
         assert iso == "2026-04-11T00:00:00"
 
     def test_date_with_dhivehi_label(self):
         """Simulate real info-div text: Dhivehi label + newline + date."""
-        march_dv = [k for k, v in MONTH_TRANSLATIONS.items() if v == "March" and k != "March"][0]
-        # Thaana label for "Date" is "ތaaaRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRi:"
-        thaana_date_label = "ތaaaRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRi"
-        # Use the real Thaana label
-        thaana_date_label = "ތaaaRi"
-        # Actual Dhivehi label from gazette: "ތaaaRiRiRiRiRi:"
-        # Use a realistic simulation
+        march_dv = [
+            k for k, v in MONTH_TRANSLATIONS.items() if v == "March" and k != "March"
+        ][0]
         text = f"ތaaaRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRiRi:  \n                        31 {march_dv} 2026"
         # This will fail if the label token is "unknown" — which is expected —
         # and the remaining tokens resolve correctly.
@@ -130,16 +160,34 @@ class TestDhivehiMonths:
         assert iso == "2026-03-31T00:00:00"
 
     def test_deadline_with_dhivehi_label(self):
-        april_dv = [k for k, v in MONTH_TRANSLATIONS.items() if v == "April" and k != "April"][0]
+        april_dv = [
+            k for k, v in MONTH_TRANSLATIONS.items() if v == "April" and k != "April"
+        ][0]
         text = f"ސaaYuNGaDi:  \n                        11 {april_dv} 2026 00:00"
         iso = maldivian_to_iso(text)
         assert iso == "2026-04-11T00:00:00"
 
     def test_all_dhivehi_months_parseable(self):
-        dhivehi_months = {k: v for k, v in MONTH_TRANSLATIONS.items()
-                         if k not in {"January","February","March","April","May","June",
-                                       "July","August","September","October","November","December"}}
-        for dv_key, eng_val in dhivehi_months.items():
+        dhivehi_months = {
+            k: v
+            for k, v in MONTH_TRANSLATIONS.items()
+            if k
+            not in {
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
+            }
+        }
+        for dv_key in dhivehi_months:
             iso = maldivian_to_iso(f"15 {dv_key} 2026")
             assert "2026" in iso, f"Parsing failed for Dhivehi month key {dv_key!r}"
 
@@ -147,6 +195,7 @@ class TestDhivehiMonths:
 # ---------------------------------------------------------------------------
 # Exact scraped text from live diagnostic (copy of real repr() output)
 # ---------------------------------------------------------------------------
+
 
 class TestRealScrapedText:
     """
@@ -168,11 +217,15 @@ class TestRealScrapedText:
     # Item 1 — date div (no time)
     ITEM1_DATE = "ތaaaRiRiRiRiRiRiRi:  \n                        01 \u0787\u07ad\u0795\u07b0\u0783\u07a8\u078d\u07b0 2026"
     # Item 1 — deadline div (has time)
-    ITEM1_DEADLINE = "sSuNGaDi: 09 \u0787\u07ad\u0795\u07b0\u0783\u07a8\u078d\u07b0 2026 12:00"
+    ITEM1_DEADLINE = (
+        "sSuNGaDi: 09 \u0787\u07ad\u0795\u07b0\u0783\u07a8\u078d\u07b0 2026 12:00"
+    )
     # Item 2 — date div
     ITEM2_DATE = "ތaaaRiRiRiRiRiRiRi:  \n                        01 \u0787\u07ad\u0795\u07b0\u0783\u07a8\u078d\u07b0 2026"
     # Item 2 — deadline div
-    ITEM2_DEADLINE = "sSuNGaDi: 07 \u0787\u07ad\u0795\u07b0\u0783\u07a8\u078d\u07b0 2026 14:00"
+    ITEM2_DEADLINE = (
+        "sSuNGaDi: 07 \u0787\u07ad\u0795\u07b0\u0783\u07a8\u078d\u07b0 2026 14:00"
+    )
 
     def _month_token(self, text: str) -> str:
         """Extract the token that should be a month name."""
@@ -232,6 +285,7 @@ class TestRealScrapedText:
 # has_time detection helper (mirrors scrape_gazette_page logic)
 # ---------------------------------------------------------------------------
 
+
 class TestHasTimeDetection:
     def _has_time(self, text: str) -> bool:
         return any(re.match(r"^\d{2}:\d{2}$", p) for p in text.split())
@@ -252,6 +306,7 @@ class TestHasTimeDetection:
 # ---------------------------------------------------------------------------
 # Error cases
 # ---------------------------------------------------------------------------
+
 
 class TestErrorCases:
     def test_missing_year_raises(self):
