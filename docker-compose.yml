@@ -6,6 +6,9 @@ services:
       - "8000:8000"
     volumes:
       - .:/code
+      # Keep the container's venv out of the host checkout (it would be root-owned
+      # and linked to the container's Python).
+      - /code/.venv
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=${DATABASE_URL}
@@ -30,6 +33,9 @@ services:
     restart: unless-stopped
     volumes:
       - .:/code
+      # Keep the container's venv out of the host checkout (it would be root-owned
+      # and linked to the container's Python).
+      - /code/.venv
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=${DATABASE_URL}

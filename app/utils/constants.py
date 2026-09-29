@@ -1,7 +1,8 @@
 """Constants for the Gazette API."""
 
 GAZETTE_BASE_URL = "https://www.gazette.gov.mv/"
-IULAAN_SEARCH_URL = "iulaan/"
+# No trailing slash: "iulaan/" 301-redirects to "iulaan", costing a round trip.
+IULAAN_SEARCH_URL = "iulaan"
 
 JOB_CATEGORIES = {
     "administration": "administration",
