@@ -12,6 +12,7 @@ from fastapi_cache.backends.redis import RedisBackend
 from fastapi_cache.decorator import cache
 from psycopg.errors import DuplicateObject, DuplicateTable
 from redis import asyncio as aioredis
+from tortoise import timezone
 from tortoise.contrib.fastapi import register_tortoise
 from tortoise.exceptions import NotExistOrMultiple
 
@@ -69,6 +70,7 @@ async def search(
 
     result_exists = await Result.filter(search_key=SEARCH_KEY).first()
     if result_exists:
+        await Result.filter(id=result_exists.id).update(last_accessed_at=timezone.now())
         response = await Result_Pydantic.from_tortoise_orm(result_exists)
         return response
 

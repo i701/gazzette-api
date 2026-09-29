@@ -18,6 +18,10 @@ from app.utils.constants import (
 GAZETTE_TIMEOUT = httpx.Timeout(
     config("GAZETTE_TIMEOUT_SECONDS", cast=float, default=30.0), connect=10.0
 )
+# Background refreshes have nobody waiting on them, so they can wait longer.
+REFRESH_TIMEOUT = httpx.Timeout(
+    config("REFRESH_TIMEOUT_SECONDS", cast=float, default=90.0), connect=10.0
+)
 
 
 class UpstreamError(Exception):
@@ -97,10 +101,10 @@ async def close_client() -> None:
         _client = None
 
 
-async def fetch_html(url: str) -> bytes:
+async def fetch_html(url: str, timeout: httpx.Timeout | None = None) -> bytes:
     """Fetch a gazette page, raising UpstreamError on timeouts or bad responses."""
     try:
-        response = await get_client().get(url)
+        response = await get_client().get(url, timeout=timeout or GAZETTE_TIMEOUT)
     except httpx.TimeoutException as e:
         raise UpstreamError(f"Timed out fetching {url}") from e
     except httpx.HTTPError as e:
@@ -196,5 +200,5 @@ async def iulaan_search(
 
 
 async def iulaan_search_with_url(url: str) -> dict:
-    """Search for listings from url."""
-    return parse_listing(await fetch_html(url))
+    """Re-fetch a stored search url (used by the background refresh)."""
+    return parse_listing(await fetch_html(url, timeout=REFRESH_TIMEOUT))
